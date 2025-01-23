@@ -64,7 +64,8 @@ function ChatView() {
     setMessages(prev=>[...prev,{
       role:'user',
       content:input
-    }])
+    }]);
+    setUserInput("");
   }
 
 
@@ -99,6 +100,7 @@ function ChatView() {
       >
         <div className="flex gap-2">
           <textarea
+          value={userInput}
             placeholder={Lookup.INPUT_PLACEHOLDER}
             onChange={(event) => setUserInput(event.target.value)}
             className="outline-none bg-transparent w-full h-32 max-h-56 resize-none"
