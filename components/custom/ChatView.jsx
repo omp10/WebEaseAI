@@ -12,6 +12,7 @@ import { useState } from "react";
 import { Link,ArrowRight, Loader2Icon } from "lucide-react";
 import Prompt from "@/data/Prompt";
 import axios from "axios";
+import ReactMarkdown from 'react-markdown';
 function ChatView() {
   const { id } = useParams();
   const convex = useConvex();
@@ -80,7 +81,7 @@ function ChatView() {
           }}>
             {msg?.role=='user'&&<Image src={userDetail?.picture} alt="userImage"
             width={35} height={35} className="rounded-full"/>}
-            <h2>{msg.content}</h2>
+            <ReactMarkdown className="flex flex-col">{msg.content}</ReactMarkdown>
           </div>
         ))}
         {loading && <div className="p-3 rounded-lg mb-2 flex gap-2 items-center leading-7"
