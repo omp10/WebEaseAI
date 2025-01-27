@@ -21,6 +21,10 @@ function Hero() {
       setOpenDialog(true);
       return;
     }
+    if(userDetail?.token<10){
+      toast('You dont have enough tokens!');
+      return;
+    }
     const msg = {
       role: "user",
       content: input,

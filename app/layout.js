@@ -2,6 +2,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Provider from "./Provider";
 import ConvexClientProvider from "./ConvexClientProvider";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata = {
   title: "WebEase AI",
@@ -13,7 +14,7 @@ export default function RootLayout({ children }) {
     <html lang="en" suppressHydrationWarning>
       <body>
         <ConvexClientProvider>
-        <Provider>{children}</Provider>
+          <Provider>{children} <Toaster /></Provider>
         </ConvexClientProvider>
       </body>
     </html>
