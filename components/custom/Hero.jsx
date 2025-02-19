@@ -9,22 +9,29 @@ import SignInDialog from "./SignInDialog";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast"; // Ensure you have react-hot-toast installed
+
 function Hero() {
-  const [userInput, setUserInput] = useState();
+  const [userInput, setUserInput] = useState("");
   const { messages, setMessages } = useContext(MessagesContext);
   const { userDetail, setUserDetail } = useContext(UserDetailContext);
   const [openDialog, setOpenDialog] = useState(false);
   const CreateWorkspace = useMutation(api.workspace.CreateWorkspace);
   const router = useRouter();
+
   const onGenerate = async (input) => {
-    if (!userDetail?.name) {
+    // Ensure the user is authenticated and has a valid _id.
+    if (!userDetail || !userDetail._id) {
       setOpenDialog(true);
       return;
     }
-    if(userDetail?.token<10){
-      toast('You dont have enough tokens!');
+
+    // Check if user has enough tokens.
+    if (userDetail.token < 10) {
+      toast("You don't have enough tokens!");
       return;
     }
+
     const msg = {
       role: "user",
       content: input,
@@ -32,12 +39,17 @@ function Hero() {
 
     setMessages(msg);
 
-    const workspaceId = await CreateWorkspace({
-      user: userDetail._id,
-      messages: [msg],
-    });
-    console.log(workspaceId);
-    router.push(`/workspace/${workspaceId}`);
+    try {
+      const workspaceId = await CreateWorkspace({
+        user: userDetail._id,
+        messages: [msg],
+      });
+      console.log("Workspace created with id:", workspaceId);
+      router.push(`/workspace/${workspaceId}`);
+    } catch (error) {
+      console.error("Error creating workspace:", error);
+      toast("Failed to create workspace, please try again.");
+    }
   };
 
   return (
@@ -46,9 +58,7 @@ function Hero() {
       <p className="text-gray-400 font-medium">{Lookup.HERO_DESC}</p>
       <div
         className="p-5 border rounded-xl max-w-xl w-full mt-3"
-        style={{
-          backgroundColor: Colors.BACKGROUND,
-        }}
+        style={{ backgroundColor: Colors.BACKGROUND }}
       >
         <div className="flex gap-2">
           <textarea
@@ -61,7 +71,7 @@ function Hero() {
               onClick={() => onGenerate(userInput)}
               className="bg-blue-500 p-2 h-8 w-10 rounded-md cursor-pointer"
             />
-          )}{" "}
+          )}
         </div>
         <div>
           <Link className="h-5 w-5" />
@@ -80,7 +90,7 @@ function Hero() {
       </div>
       <SignInDialog
         openDialog={openDialog}
-        closeDialog={(v) => setOpenDialog(false)}
+        closeDialog={() => setOpenDialog(false)}
       />
     </div>
   );

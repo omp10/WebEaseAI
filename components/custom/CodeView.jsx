@@ -10,7 +10,6 @@ import {
 import Lookup from "@/data/Lookup";
 import axios from "axios";
 import { UserDetailContext } from "@/context/UserDetailContext";
-
 import { MessagesContext } from "@/context/MessagesContext";
 import Prompt from "@/data/Prompt";
 import { useConvex, useMutation } from "convex/react";
@@ -19,26 +18,25 @@ import { useParams } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
 import { countToken } from "./ChatView";
 import SandpackPreviewClient from "./SandpackPreviewClient";
-import { ActionContext } from "@/context/ActionContext";
+// Removed: import { ActionContext } from "@/context/ActionContext";
+
 function CodeView() {
   const { id } = useParams();
-  const [activeTab, setActiveTab] = useState('code');
+  const [activeTab, setActiveTab] = useState("code");
   const [files, setFiles] = useState(Lookup?.DEFAULT_FILE);
-  const { messages, setMessages } = useContext(MessagesContext);
+  const { messages } = useContext(MessagesContext);
   const UpdateFiles = useMutation(api.workspace.UpdateFiles);
   const convex = useConvex();
   const [loading, setLoading] = useState(false);
   const UpdateTokens = useMutation(api.users.UpdateToken);
-  const { userDetail,setUserDetail } = useContext(UserDetailContext);
-    const { action, setAction } = useContext(ActionContext);
+  const { userDetail, setUserDetail } = useContext(UserDetailContext);
+  // Removed: const { action, setAction } = useContext(ActionContext);
 
   useEffect(() => {
-    id && GetFiles();
+    if (id) {
+      GetFiles();
+    }
   }, [id]);
-
-  useEffect(()=>{
-    setActiveTab('preview')
-  },[action])
 
   const GetFiles = async () => {
     setLoading(true);
@@ -52,8 +50,8 @@ function CodeView() {
 
   useEffect(() => {
     if (messages?.length > 0) {
-      const role = messages[messages?.length - 1].role;
-      if (role == "user") {
+      const role = messages[messages.length - 1].role;
+      if (role === "user") {
         GeneratedAiCode();
       }
     }
@@ -62,9 +60,13 @@ function CodeView() {
   const GeneratedAiCode = async () => {
     setLoading(true);
     const PROMPT = JSON.stringify(messages) + " " + Prompt.CODE_GEN_PROMPT;
-    const result = await axios.post("/api/gen-ai-code", {
-      prompt: PROMPT,
-    },{timeout:30000});
+    const result = await axios.post(
+      "/api/gen-ai-code",
+      {
+        prompt: PROMPT,
+      },
+      { timeout: 30000 }
+    );
     console.log(result.data);
     const aiResp = result.data;
 
@@ -81,10 +83,10 @@ function CodeView() {
       userId: userDetail?._id,
       token: token,
     });
-    setUserDetail(prev=>({
+    setUserDetail((prev) => ({
       ...prev,
-      token:token
-    }))
+      token: token,
+    }));
     setActiveTab("code");
     setLoading(false);
   };
@@ -92,16 +94,22 @@ function CodeView() {
   return (
     <div className="relative">
       <div className="bg-[#181818] w-full p-2 border">
-        <div className="  flex items-center flex-wrap shrink-0 gap-3 bg-black p-1 w-[140px] justify-center rounded-full">
+        <div className="flex items-center flex-wrap shrink-0 gap-3 bg-black p-1 w-[140px] justify-center rounded-full">
           <h2
             onClick={() => setActiveTab("code")}
-            className={`text-sm cursor-pointer ${activeTab == "code" && "text-blue-500 bg-blue-500 bg-opacity-25 p-1 px-2 rounded-full "}`}
+            className={`text-sm cursor-pointer ${
+              activeTab === "code" &&
+              "text-blue-500 bg-blue-500 bg-opacity-25 p-1 px-2 rounded-full"
+            }`}
           >
             Code
           </h2>
           <h2
             onClick={() => setActiveTab("preview")}
-            className={`text-sm cursor-pointer ${activeTab == "preview" && "text-blue-500 bg-blue-500 bg-opacity-25 p-1 px-2 rounded-full "}`}
+            className={`text-sm cursor-pointer ${
+              activeTab === "preview" &&
+              "text-blue-500 bg-blue-500 bg-opacity-25 p-1 px-2 rounded-full"
+            }`}
           >
             Preview
           </h2>
@@ -109,7 +117,7 @@ function CodeView() {
       </div>
       <SandpackProvider
         template="react"
-        theme={"dark"}
+        theme="dark"
         files={files}
         customSetup={{
           dependencies: {
@@ -121,14 +129,14 @@ function CodeView() {
         }}
       >
         <SandpackLayout>
-          {activeTab == "code" ? (
+          {activeTab === "code" ? (
             <>
               <SandpackFileExplorer style={{ height: "80vh" }} />
               <SandpackCodeEditor style={{ height: "80vh" }} />
             </>
           ) : (
             <>
-             <SandpackPreviewClient/>
+              <SandpackPreviewClient />
             </>
           )}
         </SandpackLayout>
