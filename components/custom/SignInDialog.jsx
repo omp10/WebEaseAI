@@ -25,7 +25,7 @@ function SignInDialog({ openDialog, closeDialog }) {
       console.log(tokenResponse);
       const userInfo = await axios.get(
         "https://www.googleapis.com/oauth2/v3/userinfo",
-        { headers: { Authorization: "Bearer" + tokenResponse?.access_token } }
+        { headers: { Authorization: "Bearer " + tokenResponse?.access_token } }
       );
 
       console.log(userInfo);
