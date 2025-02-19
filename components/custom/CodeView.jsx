@@ -22,7 +22,7 @@ import SandpackPreviewClient from "./SandpackPreviewClient";
 import { ActionContext } from "@/context/ActionContext";
 function CodeView() {
   const { id } = useParams();
-  const [activeTab, setActiveTab] = useState("code");
+  const [activeTab, setActiveTab] = useState('code');
   const [files, setFiles] = useState(Lookup?.DEFAULT_FILE);
   const { messages, setMessages } = useContext(MessagesContext);
   const UpdateFiles = useMutation(api.workspace.UpdateFiles);
@@ -64,7 +64,7 @@ function CodeView() {
     const PROMPT = JSON.stringify(messages) + " " + Prompt.CODE_GEN_PROMPT;
     const result = await axios.post("/api/gen-ai-code", {
       prompt: PROMPT,
-    });
+    },{timeout:30000});
     console.log(result.data);
     const aiResp = result.data;
 
