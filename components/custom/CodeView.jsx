@@ -8,6 +8,7 @@ import {
   SandpackFileExplorer,
 } from "@codesandbox/sandpack-react";
 import Lookup from "@/data/Lookup";
+import toast from "react-hot-toast";
 import axios from "axios";
 import { UserDetailContext } from "@/context/UserDetailContext";
 import { MessagesContext } from "@/context/MessagesContext";
@@ -87,6 +88,7 @@ function CodeView() {
       ...prev,
       token: token,
     }));
+    toast.success('Click Run before previewing')
     setActiveTab("code");
     setLoading(false);
   };
