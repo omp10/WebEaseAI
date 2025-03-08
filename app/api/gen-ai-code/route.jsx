@@ -1,7 +1,7 @@
 import { GenAiCode } from "@/configs/AiModel";
 import { NextResponse } from "next/server";
 
-// export const config = { runtime: "edge" }; // Uncomment if Edge runtime works better
+ export const config = { runtime: "edge" }; // Uncomment if Edge runtime works better
 
 export async function POST(req) {
     try {
