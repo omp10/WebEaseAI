@@ -16,10 +16,10 @@ import Prompt from "@/data/Prompt";
 import { useConvex, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useParams } from "next/navigation";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, PlayCircle } from "lucide-react"; // Added PlayCircle icon
 import { countToken } from "./ChatView";
 import SandpackPreviewClient from "./SandpackPreviewClient";
-// Removed: import { ActionContext } from "@/context/ActionContext";
+import { motion, AnimatePresence } from "framer-motion"; // Import Framer Motion
 
 function CodeView() {
   const { id } = useParams();
@@ -31,7 +31,6 @@ function CodeView() {
   const [loading, setLoading] = useState(false);
   const UpdateTokens = useMutation(api.users.UpdateToken);
   const { userDetail, setUserDetail } = useContext(UserDetailContext);
-  // Removed: const { action, setAction } = useContext(ActionContext);
 
   useEffect(() => {
     if (id) {
@@ -60,63 +59,110 @@ function CodeView() {
 
   const GeneratedAiCode = async () => {
     setLoading(true);
-    const PROMPT = JSON.stringify(messages) + " " + Prompt.CODE_GEN_PROMPT;
-    const result = await axios.post(
-      "/api/gen-ai-code",
-      {
-        prompt: PROMPT,
-      },
-      { timeout: 30000 }
+    // Timeout for fetching
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Request timed out")), 60000)
     );
-    console.log(result.data);
-    const aiResp = result.data;
 
-    const mergedFiles = { ...Lookup.DEFAULT_FILE, ...aiResp?.files };
-    setFiles(mergedFiles);
-    await UpdateFiles({
-      workspaceId: id,
-      files: aiResp?.files,
-    });
-    const token =
-      Number(userDetail?.token) - Number(countToken(JSON.stringify(aiResp)));
+    try {
+      const PROMPT = JSON.stringify(messages) + " " + Prompt.CODE_GEN_PROMPT;
+      const requestPromise = axios.post(
+        "/api/gen-ai-code",
+        { prompt: PROMPT },
+        { timeout: 60000 } // Extended timeout
+      );
 
-    await UpdateTokens({
-      userId: userDetail?._id,
-      token: token,
-    });
-    setUserDetail((prev) => ({
-      ...prev,
-      token: token,
-    }));
-    toast.success('Click Run before previewing')
-    setActiveTab("code");
-    setLoading(false);
+      const result = await Promise.race([requestPromise, timeoutPromise]);
+      const aiResp = result.data;
+      const mergedFiles = { ...Lookup.DEFAULT_FILE, ...aiResp?.files };
+
+      setFiles(mergedFiles);
+      await UpdateFiles({
+        workspaceId: id,
+        files: aiResp?.files,
+      });
+
+      const token = Number(userDetail?.token) - Number(countToken(JSON.stringify(aiResp)));
+      await UpdateTokens({
+        userId: userDetail?._id,
+        token: token,
+      });
+      setUserDetail((prev) => ({
+        ...prev,
+        token: token,
+      }));
+
+      toast.success("Code generated successfully! Click 'Run' to preview.");
+      setActiveTab("code");
+    } catch (error) {
+      console.error("Error generating AI code:", error);
+      toast.error("Failed to generate code, please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTabChange = (tab) => {
+    if (loading) {
+      toast.error("Please wait for the code to generate.");
+      return;
+    }
+    setActiveTab(tab);
+  };
+
+  const tabVariants = {
+    active: {
+      backgroundColor: "rgba(59, 130, 246, 0.25)",
+      color: "rgb(59, 130, 246)",
+      scale: 1.1,
+      transition: { type: "spring", stiffness: 300, damping: 20 },
+    },
+    inactive: {
+      backgroundColor: "rgba(0,0,0,0)",
+      color: "rgb(156, 163, 175)",
+      scale: 1,
+    },
+  };
+
+  const contentVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
   };
 
   return (
-    <div className="relative">
-      <div className="bg-[#181818] w-full p-2 border">
-        <div className="flex items-center flex-wrap shrink-0 gap-3 bg-black p-1 w-[140px] justify-center rounded-full">
-          <h2
-            onClick={() => setActiveTab("code")}
-            className={`text-sm cursor-pointer ${
-              activeTab === "code" &&
-              "text-blue-500 bg-blue-500 bg-opacity-25 p-1 px-2 rounded-full"
-            }`}
+    <div className="relative h-full flex flex-col">
+      <div className="bg-[#181818] w-full p-2 border-b border-gray-700/50 flex items-center justify-between">
+        <div className="flex items-center gap-3 bg-gray-800 p-1 rounded-full border border-gray-700/50">
+          <motion.h2
+            onClick={() => handleTabChange("code")}
+            className="text-sm cursor-pointer p-1 px-3 rounded-full font-medium"
+            animate={activeTab === "code" ? "active" : "inactive"}
+            variants={tabVariants}
           >
             Code
-          </h2>
-          <h2
-            onClick={() => setActiveTab("preview")}
-            className={`text-sm cursor-pointer ${
-              activeTab === "preview" &&
-              "text-blue-500 bg-blue-500 bg-opacity-25 p-1 px-2 rounded-full"
-            }`}
+          </motion.h2>
+          <motion.h2
+            onClick={() => handleTabChange("preview")}
+            className="text-sm cursor-pointer p-1 px-3 rounded-full font-medium"
+            animate={activeTab === "preview" ? "active" : "inactive"}
+            variants={tabVariants}
           >
             Preview
-          </h2>
+          </motion.h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <motion.button
+            onClick={() => handleTabChange("preview")}
+            className="flex items-center gap-2 text-blue-500 font-medium px-4 py-2 rounded-full border border-blue-500/50 hover:bg-blue-500/20 transition-colors"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <PlayCircle size={18} />
+            Run
+          </motion.button>
         </div>
       </div>
+      
       <SandpackProvider
         template="react"
         theme="dark"
@@ -130,25 +176,49 @@ function CodeView() {
           externalResources: ["https://unpkg.com/@tailwindcss/browser@4"],
         }}
       >
-        <SandpackLayout>
-          {activeTab === "code" ? (
-            <>
-              <SandpackFileExplorer style={{ height: "80vh" }} />
-              <SandpackCodeEditor style={{ height: "80vh" }} />
-            </>
-          ) : (
-            <>
-              <SandpackPreviewClient />
-            </>
-          )}
+        <SandpackLayout className="flex-1">
+          <AnimatePresence mode="wait">
+            {activeTab === "code" && (
+              <motion.div key="code" className="flex flex-row w-full"
+                variants={contentVariants} initial="hidden" animate="visible" exit="hidden">
+                <SandpackFileExplorer style={{ height: "calc(100vh - 120px)" }} />
+                <SandpackCodeEditor style={{ height: "calc(100vh - 120px)" }} />
+              </motion.div>
+            )}
+            {activeTab === "preview" && (
+              <motion.div key="preview" className="w-full"
+                variants={contentVariants} initial="hidden" animate="visible" exit="hidden">
+                <SandpackPreviewClient />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </SandpackLayout>
       </SandpackProvider>
-      {loading && (
-        <div className="p-10 bg-gray-900 opacity-80 absolute top-0 rounded-lg w-full h-full flex justify-center items-center">
-          <Loader2Icon className="animate-spin" />
-          <h2>Generating Files</h2>
-        </div>
-      )}
+
+      <AnimatePresence>
+        {loading && (
+          <motion.div
+            className="p-10 bg-gray-900 opacity-90 absolute inset-0 rounded-lg flex flex-col justify-center items-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.9 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <motion.div
+              className="flex flex-col items-center gap-4 text-center"
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 300 }}
+            >
+              <Loader2Icon className="animate-spin h-10 w-10 text-blue-500" />
+              <h2 className="text-xl font-semibold text-white mt-4">
+                Generating your files...
+              </h2>
+              <p className="text-gray-400">This may take a moment. Please wait.</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
