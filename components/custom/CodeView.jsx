@@ -73,7 +73,19 @@ function CodeView() {
       );
 
       const result = await Promise.race([requestPromise, timeoutPromise]);
+      
+      // Check if response has an error
+      if (result.data?.error) {
+        throw new Error(result.data.error || "Code generation failed");
+      }
+      
       const aiResp = result.data;
+      
+      if (!aiResp?.files || Object.keys(aiResp.files).length === 0) {
+        toast.error("No files were generated. Please try again.");
+        return;
+      }
+      
       const mergedFiles = { ...Lookup.DEFAULT_FILE, ...aiResp?.files };
 
       setFiles(mergedFiles);
@@ -96,7 +108,28 @@ function CodeView() {
       setActiveTab("code");
     } catch (error) {
       console.error("Error generating AI code:", error);
-      toast.error("Failed to generate code, please try again.");
+      console.error("Error response:", error.response?.data);
+      console.error("Error status:", error.response?.status);
+      
+      let errorMessage = "Failed to generate code, please try again.";
+      
+      if (error.response?.status === 429) {
+        const retryAfter = error.response.data?.retryAfter;
+        errorMessage = retryAfter 
+          ? `${error.response.data?.error || "Rate limit exceeded"}. Please retry in ${retryAfter} seconds.`
+          : error.response.data?.error || "Rate limit exceeded. Please wait a moment.";
+      } else if (error.response?.status === 500) {
+        errorMessage = error.response.data?.error || error.response.data?.details || "Server error occurred. Please try again.";
+        if (error.response.data?.details) {
+          console.error("Server error details:", error.response.data.details);
+        }
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
