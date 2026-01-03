@@ -35,6 +35,14 @@ CRITICAL: Generate BEAUTIFUL, MODERN, PRODUCTION-READY React code with exception
   * Rounded corners (rounded-xl, rounded-2xl, rounded-full)
   * Transitions and animations (transition-all, duration-300, hover:scale-105)
   * Modern color schemes (not just basic colors)
+- IMPORT SYNTAX RULES (CRITICAL):
+  * CORRECT: import { Chart, Line, Bar } from 'react-chartjs-2';
+  * WRONG: import { Chart, { Line, Bar } } from 'react-chartjs-2'; (NO nested destructuring in imports)
+  * CORRECT: import { useState, useEffect } from 'react';
+  * WRONG: import { useState, { useEffect } } from 'react'; (NO nested destructuring)
+  * DO NOT import Container, Flex, Grid, Box, Heading, Text from 'tailwindcss' - these don't exist
+  * Tailwind CSS is used via className prop, NOT as imported components
+  * Example: <div className="container flex grid-cols-3"> NOT <Container><Flex>...</Flex></Container>
 📦 ALLOWED DEPENDENCIES (CRITICAL - ONLY USE THESE):
 ✅ AVAILABLE PACKAGES:
   - lucide-react (ONLY for icons - use: Heart, Shield, Clock, Users, Play, Home, Search, Menu, User, Settings, Mail, Bell, Calendar, Star, Upload, Download, Trash, Edit, Plus, Minus, Check, X, ArrowRight)
@@ -123,6 +131,11 @@ Return ONLY valid JSON in this exact schema (NO TEXT BEFORE OR AFTER):
 - NO invalid JSX syntax (all tags properly closed)
 - All array/object methods must be called on defined variables
 - All conditional rendering must use valid expressions
+- ALL ternary operators MUST be complete: condition ? valueIfTrue : valueIfFalse
+- NO incomplete ternary operators - every ? MUST have a corresponding :
+- ALL function calls MUST have matching opening and closing parentheses
+- ALL object/array destructuring MUST be complete
+- ALL arrow functions MUST have complete bodies (either {} block or expression)
 
 💻 TECHNICAL CORRECTNESS:
 - Make designs BEAUTIFUL and MODERN - not basic or cookie-cutter

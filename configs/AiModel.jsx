@@ -1,3 +1,4 @@
+// Server-only module - these packages should not be bundled on the client
 const Groq = require("groq-sdk");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const OpenAI = require("openai");

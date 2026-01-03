@@ -36,6 +36,8 @@ function SandpackPreviewClient() {
       ref={previewRef}
       style={{ height: "80vh" }}
       showNavigator={true}
+      showOpenInCodeSandbox={false}
+      showRefreshButton={true}
     />
   );
 }
