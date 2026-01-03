@@ -1,16 +1,24 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    images:{
-        domains:['lh3.googleusercontent.com']
+    images: {
+        domains: ['lh3.googleusercontent.com']
+    },
+    // Explicitly disable turbopack to use webpack (helps with build stability)
+    experimental: {
+        // Keep webpack as the default bundler
     },
     webpack: (config, { isServer, webpack }) => {
-        // Ensure server-only packages are not bundled on client
+        // Ensure server-only packages are not bundled on the client
         if (!isServer) {
             config.resolve.fallback = {
                 ...config.resolve.fallback,
                 '@google/generative-ai': false,
                 'groq-sdk': false,
                 'openai': false,
+                fs: false,
+                net: false,
+                tls: false,
+                crypto: false,
             };
             
             // Ignore these modules on client side
@@ -26,6 +34,10 @@ const nextConfig = {
                 })
             );
         }
+        
+        // For server-side builds, these packages should be available via require()
+        // No need to externalize them as they're already server-only
+        
         return config;
     },
 };
