@@ -1,6 +1,7 @@
 "use client";
 import { MessagesContext } from "@/context/MessagesContext";
 import { UserDetailContext } from "@/context/UserDetailContext";
+import { ModelSelectionContext } from "@/context/ModelSelectionContext";
 import { api } from "@/convex/_generated/api";
 import Colors from "@/data/Colors";
 import { useConvex, useMutation } from "convex/react";
@@ -25,6 +26,7 @@ function ChatView() {
   const { id } = useParams();
   const convex = useConvex();
   const { messages, setMessages } = useContext(MessagesContext);
+  const { selectedModel } = useContext(ModelSelectionContext);
   const [userInput, setUserInput] = useState("");
   const [loading, setLoading] = useState(false);
   const UpdateMessages = useMutation(api.workspace.UpdateMessages);
@@ -73,6 +75,7 @@ function ChatView() {
       const PROMPT = JSON.stringify(messages || []) + Prompt.CHAT_PROMPT;
       const result = await axios.post("/api/ai-chat", {
         prompt: PROMPT,
+        model: selectedModel || "groq",
       });
 
       const aiResp = {
@@ -100,6 +103,23 @@ function ChatView() {
       setLoading(false);
     } catch (error) {
       console.error("Error getting AI response:", error);
+      
+      // Show user-friendly error message
+      let errorMessage = "Failed to get AI response. Please try again.";
+      
+      if (error.response?.status === 402) {
+        errorMessage = error.response.data?.error || "Account has insufficient balance. Please add credits or try a different model.";
+      } else if (error.response?.status === 429) {
+        errorMessage = error.response.data?.error || "Rate limit exceeded. Please wait a moment.";
+      } else if (error.response?.status === 401) {
+        errorMessage = error.response.data?.error || "Invalid API key. Please check your API key configuration.";
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
       setLoading(false);
     }
   };
@@ -184,6 +204,7 @@ function ChatView() {
               alt="user"
               width={35}
               height={35}
+              style={{ width: 'auto', height: 'auto' }}
             />
           )}
         </motion.div>

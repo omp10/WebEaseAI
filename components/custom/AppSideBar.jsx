@@ -11,6 +11,7 @@ import { Button } from '../ui/button';
 import { PlusCircle } from 'lucide-react';
 import Workspacehistory from './Workspacehistory';
 import SideBarFooter from './SideBarFooter';
+import ModelSelector from './ModelSelector';
 import { motion } from "framer-motion";
 import { useRouter } from 'next/navigation';
 import { api } from '@/convex/_generated/api';
@@ -51,6 +52,7 @@ function AppSideBar() {
                     width={40}
                     height={40}
                     className="rounded-full flex-shrink-0"
+                    style={{ width: 'auto', height: 'auto' }}
                 />
                 <span className="text-xl font-bold text-white whitespace-nowrap overflow-hidden text-ellipsis">
                     WebEase AI
@@ -72,6 +74,9 @@ function AppSideBar() {
                     Start New Chat
                 </Button>
             </motion.div>
+
+            {/* Model Selector */}
+            <ModelSelector />
 
             {/* Chat History Section */}
             <SidebarContent className="flex-1 p-2 overflow-y-auto scrollbar-hide">

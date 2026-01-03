@@ -12,40 +12,70 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import AppSideBar from "@/components/custom/AppSideBar";
 import { PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { ActionContext } from "@/context/ActionContext";
+import { ModelSelectionProvider } from "@/context/ModelSelectionContext";
 import { useRouter } from "next/navigation";
 import { Toaster } from 'react-hot-toast';
 
 function Provider({ children }) {
   const [messages, setMessages] = useState();
   const [userDetail, setUserDetail] = useState();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const convex = useConvex();
   const [action, setAction] = useState();
   const router = useRouter();
 
   useEffect(() => {
     IsAuthenticated();
-  }, [userDetail]); // Re-run when userDetail changes
+  }, []); // Only run once on mount
 
   const IsAuthenticated = async () => {
-    if (typeof window === "undefined") return; // Fix condition
-
-    const user = JSON.parse(localStorage.getItem("user"));
-    if (!user) {
-      router.push('/');
+    if (typeof window === "undefined") {
+      setIsCheckingAuth(false);
       return;
     }
 
+    setIsCheckingAuth(true);
+    
     try {
-      const result = await convex.query(api.users.GetUser, { email: user.email });
-      if (!result) {
+      const userStr = localStorage.getItem("user");
+      if (!userStr) {
+        setIsCheckingAuth(false);
+        return; // No user in localStorage - user is not signed in
+      }
+
+      let user;
+      try {
+        user = JSON.parse(userStr);
+      } catch (parseError) {
+        console.error("Error parsing user from localStorage:", parseError);
         localStorage.removeItem("user");
-        router.push('/');
+        setIsCheckingAuth(false);
         return;
       }
+
+      if (!user || !user.email) {
+        localStorage.removeItem("user");
+        setIsCheckingAuth(false);
+        return;
+      }
+
+      // Fetch user details from database
+      const result = await convex.query(api.users.GetUser, { email: user.email });
+      if (!result) {
+        // User not found in database - clear localStorage
+        localStorage.removeItem("user");
+        setIsCheckingAuth(false);
+        return;
+      }
+      
+      // User found - set userDetail
       setUserDetail(result);
     } catch (error) {
       console.error("Error fetching user:", error);
-      router.push('/login'); // Redirect on error
+      // On error, don't clear localStorage - might be a temporary network issue
+      // Just don't set userDetail
+    } finally {
+      setIsCheckingAuth(false);
     }
   };
 
@@ -56,16 +86,18 @@ function Provider({ children }) {
           <UserDetailContext.Provider value={{ userDetail, setUserDetail }}>
             <MessagesContext.Provider value={{ messages, setMessages }}>
               <ActionContext.Provider value={{ action, setAction }}>
-                <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-                  <SidebarProvider defaultOpen={false} className="flex flex-col">
-                    <Header />
-                    <Toaster />
-                    {children}
-                    <div className="absolute"> 
-                      <AppSideBar />
-                    </div>
-                  </SidebarProvider>
-                </NextThemesProvider>
+                <ModelSelectionProvider>
+                  <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+                    <SidebarProvider defaultOpen={false} className="flex flex-col">
+                      <Header />
+                      <Toaster />
+                      {children}
+                      <div className="absolute"> 
+                        <AppSideBar />
+                      </div>
+                    </SidebarProvider>
+                  </NextThemesProvider>
+                </ModelSelectionProvider>
               </ActionContext.Provider>
             </MessagesContext.Provider>
           </UserDetailContext.Provider>

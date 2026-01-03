@@ -12,13 +12,14 @@ import { Button } from "../ui/button";
 import { useGoogleLogin } from "@react-oauth/google";
 import { UserDetailContext } from "@/context/UserDetailContext";
 import axios from "axios";
-import { useMutation } from "convex/react";
+import { useMutation, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { v4 as uuidv4 } from "uuid";
 
 function SignInDialog({ openDialog, closeDialog }) {
   const { userDetail, setUserDetail } = useContext(UserDetailContext);
   const CreateUser = useMutation(api.users.CreateUser);
+  const convex = useConvex();
 
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
@@ -30,6 +31,8 @@ function SignInDialog({ openDialog, closeDialog }) {
 
       console.log(userInfo);
       const user = userInfo.data;
+      
+      // Create user in database
       await CreateUser({
         name: user?.name,
         email: user?.email,
@@ -37,11 +40,26 @@ function SignInDialog({ openDialog, closeDialog }) {
         uid: uuidv4(),
       });
       
+      // Save to localStorage
       if(typeof window!==undefined){
         localStorage.setItem('user',JSON.stringify(user))
       }
 
-      setUserDetail(userInfo?.data);
+      // Fetch the complete user data from database (includes _id, token, etc.)
+      try {
+        const dbUser = await convex.query(api.users.GetUser, { email: user.email });
+        if (dbUser) {
+          setUserDetail(dbUser);
+        } else {
+          // Fallback to userInfo if user not found in database
+          setUserDetail(userInfo?.data);
+        }
+      } catch (error) {
+        console.error("Error fetching user after creation:", error);
+        // Fallback to userInfo on error
+        setUserDetail(userInfo?.data);
+      }
+      
       closeDialog(false);
     },
 

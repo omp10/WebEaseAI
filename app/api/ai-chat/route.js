@@ -1,4 +1,4 @@
-import { chatSession } from "@/configs/AiModel";
+import { getChatResponse } from "@/configs/AiModel";
 import { NextResponse } from "next/server";
 
 export const runtime = 'nodejs';
@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req) {
     try {
-        const { prompt } = await req.json();
+        const { prompt, model = "groq" } = await req.json();
         
         if (!prompt) {
             return NextResponse.json({ 
@@ -14,30 +14,82 @@ export async function POST(req) {
             }, { status: 400 });
         }
 
+        // Validate model type
+        if (!["groq", "gemini", "deepseek", "openrouter"].includes(model)) {
+            return NextResponse.json({ 
+                error: "Invalid model type. Supported models: groq, gemini, deepseek, openrouter"
+            }, { status: 400 });
+        }
+
+        // Check if API key is set based on model
+        if (model === "groq" && !process.env.NEXT_PUBLIC_GROQ_API_KEY) {
+            return NextResponse.json({ 
+                error: "API key is not configured. Please set NEXT_PUBLIC_GROQ_API_KEY environment variable.",
+                details: "The Groq API key is missing from your environment variables."
+            }, { status: 500 });
+        }
+
+        if (model === "gemini" && !process.env.NEXT_PUBLIC_GEMINI_API_KEY) {
+            return NextResponse.json({ 
+                error: "API key is not configured. Please set NEXT_PUBLIC_GEMINI_API_KEY environment variable.",
+                details: "The Gemini API key is missing from your environment variables."
+            }, { status: 500 });
+        }
+
         let result;
         try {
-            result = await chatSession.sendMessage(prompt);
+            // Convert prompt to messages format
+            const messages = [
+                {
+                    role: "user",
+                    content: prompt
+                }
+            ];
+            
+            result = await getChatResponse(messages, model);
         } catch (sendError) {
-            console.error("Failed to send message to Gemini:", sendError);
+            console.error("Failed to send message to Groq:", sendError);
             
             const errorMsg = sendError.message || "";
             let statusCode = 500;
             let errorMessage = "Failed to get AI response";
             let retryAfter = null;
             
-            if (errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("Quota exceeded") || errorMsg.includes("exceeded your current quota")) {
-                errorMessage = "API quota exceeded. You've reached the free tier limit (20 requests/day). Please wait or upgrade your plan.";
+            // Rate limit errors (both Groq and Gemini)
+            if (errorMsg.includes("429") || errorMsg.includes("rate limit") || errorMsg.includes("too many requests") || errorMsg.includes("quota") || errorMsg.includes("Quota exceeded")) {
+                errorMessage = model === "gemini" 
+                    ? "API quota exceeded. You've reached the free tier limit. Please wait or upgrade your plan."
+                    : "Rate limit exceeded. Please wait a moment before trying again.";
                 statusCode = 429;
                 
-                const retryMatch = errorMsg.match(/retry in ([\d.]+)s/i) || errorMsg.match(/retryDelay["']:\s*"(\d+)s/i);
+                // Try to extract retry after from error
+                const retryMatch = errorMsg.match(/retry.*?(\d+)/i) || errorMsg.match(/retry in ([\d.]+)s/i);
                 if (retryMatch) {
                     retryAfter = Math.ceil(parseFloat(retryMatch[1]));
                 }
+            } else if (errorMsg.includes("402") || errorMsg.includes("Insufficient Balance") || errorMsg.includes("insufficient balance")) {
+                const modelName = model === "gemini" ? "Gemini" : model === "deepseek" ? "DeepSeek" : model === "openrouter" ? "OpenRouter" : "Groq";
+                errorMessage = `${modelName} account has insufficient balance. Please add credits to your ${modelName} account.`;
+                statusCode = 402;
+            } else if (errorMsg.includes("401") || errorMsg.includes("unauthorized") || errorMsg.includes("invalid api key")) {
+                const modelName = model === "gemini" ? "Gemini" : model === "deepseek" ? "DeepSeek" : model === "openrouter" ? "OpenRouter" : "Groq";
+                errorMessage = `Invalid API key. Please check your ${modelName} API key configuration.`;
+                statusCode = 401;
+            } else if (errorMsg.includes("404") || errorMsg.includes("No endpoints found") || errorMsg.includes("model not found")) {
+                const modelName = model === "openrouter" ? "OpenRouter" : "";
+                errorMessage = model === "openrouter" 
+                    ? "The selected model is not available on OpenRouter. Please try a different model or check OpenRouter's available models."
+                    : "Model not found. Please try a different model.";
+                statusCode = 404;
             }
             
             const response = { 
                 error: errorMessage,
-                details: sendError.message
+                details: sendError.message,
+                ...(process.env.NODE_ENV === 'development' && { 
+                    stack: sendError.stack,
+                    name: sendError.name
+                })
             };
             
             if (retryAfter) {
@@ -47,78 +99,32 @@ export async function POST(req) {
             return NextResponse.json(response, { status: statusCode });
         }
 
-        let respText;
-        try {
-            respText = await result.response.text();
-        } catch (textError) {
-            console.error("Failed to get response text:", textError);
-            
-            const errorMsg = textError.message || "";
-            let statusCode = 500;
-            let errorMessage = "Failed to process AI response";
-            let retryAfter = null;
-            
-            if (errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("Quota exceeded") || errorMsg.includes("exceeded your current quota")) {
-                errorMessage = "API quota exceeded. You've reached the free tier limit (20 requests/day). Please wait or upgrade your plan.";
-                statusCode = 429;
-                
-                const retryMatch = errorMsg.match(/retry in ([\d.]+)s/i) || errorMsg.match(/retryDelay["']:\s*"(\d+)s/i);
-                if (retryMatch) {
-                    retryAfter = Math.ceil(parseFloat(retryMatch[1]));
-                }
-            }
-            
-            const response = { 
-                error: errorMessage,
-                details: textError.message
-            };
-            
-            if (retryAfter) {
-                response.retryAfter = retryAfter;
-            }
-            
-            return NextResponse.json(response, { status: statusCode });
-        }
-
-        return NextResponse.json({ result: respText });
+        return NextResponse.json({ result: result });
     } catch (error) {
         console.error("Error in chat API:", error);
         
         const errorMsg = error.message || "";
-        const errorCause = error.cause?.message || "";
-        let fullErrorText = errorMsg + errorCause;
-        
-        try {
-            fullErrorText += JSON.stringify(error);
-        } catch (stringifyError) {
-            fullErrorText += errorMsg;
-        }
-        
         let errorMessage = errorMsg || "An error occurred";
         let statusCode = 500;
         let retryAfter = null;
         
-        // Check for Gemini API quota errors (429)
-        if (fullErrorText.includes("429") || 
-            fullErrorText.includes("quota") || 
-            fullErrorText.includes("Quota exceeded") || 
-            fullErrorText.includes("exceeded your current quota") ||
-            fullErrorText.includes("free_tier_requests")) {
-            errorMessage = "API quota exceeded. You've reached the free tier limit (20 requests/day). Please wait or upgrade your plan.";
+        // Check for API errors (both Groq and Gemini)
+        if (errorMsg.includes("429") || errorMsg.includes("rate limit") || errorMsg.includes("quota")) {
+            errorMessage = "Rate limit exceeded. Please wait a moment before trying again.";
             statusCode = 429;
-            
-            const retryMatch = fullErrorText.match(/retry in ([\d.]+)s/i) || 
-                              fullErrorText.match(/retryDelay["']:\s*"(\d+)s/i) ||
-                              fullErrorText.match(/(\d+\.?\d*)\s*seconds/i);
-            if (retryMatch) {
-                retryAfter = Math.ceil(parseFloat(retryMatch[1]));
-            }
+        } else if (errorMsg.includes("402") || errorMsg.includes("Insufficient Balance") || errorMsg.includes("insufficient balance")) {
+            errorMessage = "API account has insufficient balance. Please add credits to your account or try a different model.";
+            statusCode = 402;
+        } else if (errorMsg.includes("401") || errorMsg.includes("unauthorized")) {
+            errorMessage = "Invalid API key. Please check your API key configuration.";
+            statusCode = 401;
         }
         
         const response = { 
             error: errorMessage,
             ...(process.env.NODE_ENV === 'development' && { 
-                details: error.message
+                details: error.message,
+                stack: error.stack
             })
         };
         
@@ -129,3 +135,4 @@ export async function POST(req) {
         return NextResponse.json(response, { status: statusCode });
     }
 }
+

@@ -52,7 +52,14 @@ const Header = () => {
         >
           {/* Logo and Home Link */}
           <Link href="/" className="flex items-center gap-2">
-            <Image src="/logo.png" alt="Company Logo" width={40} height={40} className="rounded-full" />
+            <Image 
+              src="/logo.png" 
+              alt="Company Logo" 
+              width={40} 
+              height={40} 
+              className="rounded-full"
+              style={{ width: 'auto', height: 'auto' }}
+            />
             <span className="font-bold text-xl text-white">
               WebEaseAI
             </span>
@@ -122,6 +129,7 @@ const Header = () => {
                       height={40}
                       className="rounded-full cursor-pointer border-2 border-transparent hover:border-blue-500 transition-all"
                       onClick={toggleSidebar}
+                      style={{ width: 'auto', height: 'auto' }}
                     />
                   </motion.div>
                 )}

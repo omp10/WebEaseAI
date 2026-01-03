@@ -12,6 +12,7 @@ import toast from "react-hot-toast";
 import axios from "axios";
 import { UserDetailContext } from "@/context/UserDetailContext";
 import { MessagesContext } from "@/context/MessagesContext";
+import { ModelSelectionContext } from "@/context/ModelSelectionContext";
 import Prompt from "@/data/Prompt";
 import { useConvex, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -26,6 +27,7 @@ function CodeView() {
   const [activeTab, setActiveTab] = useState("code");
   const [files, setFiles] = useState(Lookup?.DEFAULT_FILE);
   const { messages } = useContext(MessagesContext);
+  const { selectedModel } = useContext(ModelSelectionContext);
   const UpdateFiles = useMutation(api.workspace.UpdateFiles);
   const convex = useConvex();
   const [loading, setLoading] = useState(false);
@@ -59,17 +61,18 @@ function CodeView() {
 
   const GeneratedAiCode = async () => {
     setLoading(true);
-    // Timeout for fetching
+    // Timeout for fetching - increased for OpenRouter which can be slower
+    const timeoutDuration = selectedModel === "openrouter" ? 180000 : 90000; // 180s (3min) for OpenRouter, 90s for others
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Request timed out")), 60000)
+      setTimeout(() => reject(new Error("Request timed out")), timeoutDuration)
     );
 
     try {
       const PROMPT = JSON.stringify(messages) + " " + Prompt.CODE_GEN_PROMPT;
       const requestPromise = axios.post(
         "/api/gen-ai-code",
-        { prompt: PROMPT },
-        { timeout: 60000 } // Extended timeout
+        { prompt: PROMPT, model: selectedModel || "groq" },
+        { timeout: timeoutDuration } // Dynamic timeout based on model
       );
 
       const result = await Promise.race([requestPromise, timeoutPromise]);
@@ -113,16 +116,24 @@ function CodeView() {
       
       let errorMessage = "Failed to generate code, please try again.";
       
-      if (error.response?.status === 429) {
+      if (error.response?.status === 402) {
+        errorMessage = error.response.data?.error || "Account has insufficient balance. Please add credits or try a different model.";
+      } else if (error.response?.status === 429) {
         const retryAfter = error.response.data?.retryAfter;
         errorMessage = retryAfter 
           ? `${error.response.data?.error || "Rate limit exceeded"}. Please retry in ${retryAfter} seconds.`
           : error.response.data?.error || "Rate limit exceeded. Please wait a moment.";
+      } else if (error.response?.status === 401) {
+        errorMessage = error.response.data?.error || "Invalid API key. Please check your API key configuration.";
       } else if (error.response?.status === 500) {
         errorMessage = error.response.data?.error || error.response.data?.details || "Server error occurred. Please try again.";
         if (error.response.data?.details) {
           console.error("Server error details:", error.response.data.details);
         }
+      } else if (error.message && error.message.includes("timed out") || error.message === "Request timed out") {
+        errorMessage = "Request timed out. The AI model is taking too long to respond. Please try again or use a different model.";
+      } else if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        errorMessage = "Request timed out. Please try again or use a faster model like Groq.";
       } else if (error.response?.data?.error) {
         errorMessage = error.response.data.error;
       } else if (error.message) {

@@ -21,7 +21,7 @@ export default function Workspacehistory() {
             userId:userDetail?._id
         });
         setWorkspaceList(result);
-        console.log(result);
+        // Removed console.log for cleaner console output
     }
   return (
     <div > 
