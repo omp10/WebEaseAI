@@ -3,7 +3,8 @@ const nextConfig = {
     images: {
         domains: ['lh3.googleusercontent.com']
     },
-    // Explicitly disable turbopack to use webpack (helps with build stability)
+    // Explicitly configure turbopack to use webpack instead
+    turbopack: {},
     experimental: {
         // Keep webpack as the default bundler
     },
