@@ -169,6 +169,7 @@ function ChatView() {
                 width={35}
                 height={35}
                 className="rounded-full flex-shrink-0 self-start"
+                style={{ width: 'auto', height: 'auto' }}
               />
               <ReactMarkdown className="prose prose-invert max-w-none text-white leading-relaxed">
                 {msg.content || ""}

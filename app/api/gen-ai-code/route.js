@@ -163,6 +163,21 @@ export async function POST(req) {
         let parsedResponse;
         let cleanedText = respText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         
+        // Fix backticks in code fields - OpenRouter sometimes uses backticks instead of double quotes
+        // Replace "code": `...` with "code": "..."
+        // Handle both single-line and multi-line backtick strings
+        cleanedText = cleanedText.replace(/"code"\s*:\s*`([\s\S]*?)`/g, (match, codeContent) => {
+            // Escape the code content for JSON
+            const escaped = codeContent
+                .replace(/\\/g, '\\\\')
+                .replace(/"/g, '\\"')
+                .replace(/\n/g, '\\n')
+                .replace(/\r/g, '\\r')
+                .replace(/\t/g, '\\t')
+                .replace(/\$/g, '\\$'); // Escape $ for template literals
+            return `"code": "${escaped}"`;
+        });
+        
         // If the response starts with text (not JSON), try to extract JSON from it
         // Common patterns: "I've taken...", "Here's...", etc. followed by JSON
         if (!cleanedText.trim().startsWith('{') && !cleanedText.trim().startsWith('[')) {
@@ -788,7 +803,8 @@ export async function POST(req) {
                     if (extractedFiles.has(filePath)) continue;
                     extractedFiles.add(filePath);
                     
-                    let fileCode = fileMatch[2];
+                    // Handle both double quotes (match[2]) and backticks (match[3])
+                    let fileCode = fileMatch[2] || fileMatch[3] || '';
                     // Unescape common escape sequences
                     fileCode = fileCode
                         .replace(/\\n/g, '\n')
@@ -815,9 +831,9 @@ export async function POST(req) {
                         const filePath = pathMatch[1];
                         if (extractedFiles.has(filePath)) continue;
                         
-                        // Find the code field after this file path
+                        // Find the code field after this file path (handle both double quotes and backticks)
                         const afterPath = cleanedText.substring(pathMatch.index + pathMatch[0].length);
-                        const codeFieldMatch = afterPath.match(/"code"\s*:\s*"/);
+                        const codeFieldMatch = afterPath.match(/"code"\s*:\s*(?:"|`)/);
                         
                         if (codeFieldMatch) {
                             const codeStartIndex = pathMatch.index + pathMatch[0].length + afterPath.indexOf(codeFieldMatch[0]) + codeFieldMatch[0].length;
@@ -883,6 +899,12 @@ export async function POST(req) {
                 return NextResponse.json(recoveredJson);
             }
             
+            // Even if we didn't get files, if we have projectTitle/explanation, return partial result
+            if (projectTitleMatch || explanationMatch) {
+                console.log("Returning partial recovery with projectTitle/explanation only");
+                return NextResponse.json(recoveredJson);
+            }
+            
             // Last resort: try to close braces and re-parse
             let lastBrace = cleanedText.lastIndexOf('}');
             if (lastBrace > 0) {
@@ -934,15 +956,16 @@ export async function POST(req) {
                     const currentPath = filePaths[i];
                     const nextPathIndex = i < filePaths.length - 1 ? filePaths[i + 1].index : cleanedText.length;
                     
-                    // Find "code" field for this file
+                    // Find "code" field for this file (handle both double quotes and backticks)
                     const fileSection = cleanedText.substring(currentPath.index, nextPathIndex);
-                    const codeFieldMatch = fileSection.match(/"code"\s*:\s*"/);
+                    const codeFieldMatch = fileSection.match(/"code"\s*:\s*(?:"|`)/);
                     
                     if (codeFieldMatch) {
                         const codeStartIndex = currentPath.index + fileSection.indexOf(codeFieldMatch[0]) + codeFieldMatch[0].length;
+                        const quoteType = codeFieldMatch[0].includes('`') ? '`' : '"';
                         
                         // Find the end of the code string
-                        // We need to handle escaped quotes and find the actual end
+                        // We need to handle escaped quotes/backticks and find the actual end
                         let codeEndIndex = codeStartIndex;
                         let inEscape = false;
                         let foundEnd = false;
@@ -960,7 +983,7 @@ export async function POST(req) {
                                 continue;
                             }
                             
-                            if (char === '"') {
+                            if (char === quoteType) {
                                 // Check if this is followed by comma, closing brace, or end of text
                                 const nextChar = j + 1 < cleanedText.length ? cleanedText[j + 1] : '';
                                 if (nextChar === ',' || nextChar === '}' || nextChar === '' || /\s/.test(nextChar)) {
@@ -1003,29 +1026,129 @@ export async function POST(req) {
                 return NextResponse.json(finalRecovery);
             }
             
-            return NextResponse.json({ 
-                error: "Failed to parse AI response as JSON",
-                details: parseError.message,
-                rawResponse: cleanedText.substring(0, 500) // First 500 chars for debugging
-            }, { status: 500 });
+            // Even if we didn't get files, if we have projectTitle/explanation, return partial result
+            if (projectTitleMatch || explanationMatch) {
+                console.log("Returning partial recovery with projectTitle/explanation only (aggressive extraction)");
+                return NextResponse.json(finalRecovery);
+            }
+            
+            // Last attempt: try to extract ANY code-like content even without proper structure
+            console.log("Attempting ultra-lenient code extraction...");
+            // Handle both double quotes and backticks
+            const ultraLenientPattern = /"code"\s*:\s*(?:"([^"]*(?:\\.[^"]*)*)|`([^`]*(?:\\.[^`]*)*)`)/g;
+            let ultraMatch;
+            const ultraRecovery = {
+                projectTitle: projectTitleMatch ? projectTitleMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n') : "Recovered Project",
+                explanation: explanationMatch ? explanationMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n') : "Response was severely truncated. Attempting to recover any code found.",
+                files: {},
+                generatedFiles: []
+            };
+            
+            while ((ultraMatch = ultraLenientPattern.exec(cleanedText)) !== null) {
+                try {
+                    // Try to find a file path before this code field
+                    const beforeCode = cleanedText.substring(0, ultraMatch.index);
+                    const filePathMatch = beforeCode.match(/"(\/[^"]+\.js)"/);
+                    const filePath = filePathMatch ? filePathMatch[1] : `/recovered-${Object.keys(ultraRecovery.files).length + 1}.js`;
+                    
+                    if (ultraRecovery.files[filePath]) continue;
+                    
+                    // Extract code - handle both double quotes (match[1]) and backticks (match[2])
+                    let codeContent = ultraMatch[1] || ultraMatch[2] || '';
+                    const quoteType = ultraMatch[1] ? '"' : '`';
+                    
+                    // Find where this code string might end (look for closing quote/backtick or end of text)
+                    const codeStart = ultraMatch.index + ultraMatch[0].length - codeContent.length;
+                    let codeEnd = cleanedText.indexOf(quoteType, codeStart + codeContent.length);
+                    if (codeEnd < 0) {
+                        // No closing quote - extract up to reasonable limit
+                        codeEnd = Math.min(cleanedText.length, codeStart + codeContent.length + 20000);
+                        codeContent = cleanedText.substring(codeStart, codeEnd);
+                        // Remove opening quote/backtick if present
+                        if (codeContent.startsWith(quoteType)) {
+                            codeContent = codeContent.substring(1);
+                        }
+                    }
+                    
+                    // Unescape
+                    codeContent = codeContent
+                        .replace(/\\n/g, '\n')
+                        .replace(/\\t/g, '\t')
+                        .replace(/\\r/g, '\r')
+                        .replace(/\\"/g, '"')
+                        .replace(/\\\\/g, '\\')
+                        .replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+                    
+                    if (codeContent.length > 50) {
+                        ultraRecovery.files[filePath] = { code: codeContent };
+                        ultraRecovery.generatedFiles.push(filePath);
+                    }
+                } catch (e) {
+                    console.error("Error in ultra-lenient extraction:", e);
+                }
+            }
+            
+            if (Object.keys(ultraRecovery.files).length > 0) {
+                console.log(`Ultra-lenient recovery extracted ${Object.keys(ultraRecovery.files).length} file(s)`);
+                return NextResponse.json(ultraRecovery);
+            }
+            
+            // If we have at least projectTitle/explanation, return partial result
+            if (projectTitleMatch || explanationMatch) {
+                console.log("Returning minimal recovery with only projectTitle/explanation");
+                return NextResponse.json(ultraRecovery);
+            }
+            
+            // Final fallback: return a minimal response with the raw text as a file
+            // This way the user at least gets something instead of an error
+            console.log("All recovery attempts failed, returning minimal response with raw text");
+            const minimalResponse = {
+                projectTitle: "Recovered Project",
+                explanation: "The AI response was severely truncated and could not be parsed. The raw response has been included as a file for inspection.",
+                files: {
+                    "/raw-response.txt": {
+                        code: cleanedText.substring(0, 50000) // Include up to 50KB of raw response
+                    }
+                },
+                generatedFiles: ["/raw-response.txt"]
+            };
+            
+            return NextResponse.json(minimalResponse);
         } catch (recoveryParseError) {
+            // Safely extract error message without modifying the error object
+            const errorDetails = recoveryParseError instanceof Error 
+                ? recoveryParseError.message 
+                : String(recoveryParseError);
+            
             return NextResponse.json({ 
                 error: "Failed to parse AI response as JSON",
-                details: recoveryParseError.message,
+                details: errorDetails,
                 rawResponse: cleanedText.substring(0, 500)
             }, { status: 500 });
         }
     } catch (error) {
         console.error("Error in code generation API:", error);
         
-        const errorMsg = error.message || "";
-        const errorCause = error.cause?.message || "";
-        let fullErrorText = errorMsg + errorCause;
+        // Safely extract error message without modifying the error object
+        const errorMsg = (error instanceof Error && error.message) ? error.message : String(error);
+        const errorCause = (error instanceof Error && error.cause && error.cause instanceof Error && error.cause.message) 
+            ? error.cause.message 
+            : "";
+        let fullErrorText = errorMsg + (errorCause ? " " + errorCause : "");
         
         try {
-            fullErrorText += JSON.stringify(error);
+            // Only stringify if it's safe to do so
+            if (error instanceof Error) {
+                fullErrorText += " " + JSON.stringify({ 
+                    name: error.name, 
+                    message: error.message,
+                    stack: error.stack?.substring(0, 500) // Limit stack trace
+                });
+            } else {
+                fullErrorText += " " + String(error);
+            }
         } catch (stringifyError) {
-            fullErrorText += errorMsg;
+            fullErrorText += " " + errorMsg;
         }
         
         let errorMessage = errorMsg || "An error occurred";
@@ -1066,14 +1189,27 @@ export async function POST(req) {
             statusCode = 504;
         }
         
+        // Safely extract error properties without modifying the error object
         const response = { 
             error: errorMessage,
-            ...(process.env.NODE_ENV === 'development' && { 
-                stack: error.stack,
-                name: error.name,
-                details: error.message
-            })
+            details: errorMsg
         };
+        
+        // Only include stack and name in development mode, and safely extract them
+        if (process.env.NODE_ENV === 'development') {
+            try {
+                if (error instanceof Error) {
+                    if (error.stack) {
+                        response.stack = String(error.stack).substring(0, 1000); // Limit and convert to string
+                    }
+                    if (error.name) {
+                        response.name = String(error.name);
+                    }
+                }
+            } catch (e) {
+                // Ignore if we can't access these properties
+            }
+        }
         
         if (retryAfter) {
             response.retryAfter = retryAfter;

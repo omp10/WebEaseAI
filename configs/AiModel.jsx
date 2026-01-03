@@ -145,12 +145,12 @@ const openrouterChatConfig = {
 };
 
 // OpenRouter code generation configuration
-// Using a smaller, faster model for code generation to improve speed
+// Prioritizing code quality and completeness over speed
 const openrouterCodeConfig = {
   model: "meta-llama/llama-3.2-3b-instruct:free",
-  temperature: 0.7, // Slightly lower for more consistent JSON
-  top_p: 0.9,
-  max_tokens: 8192, // Reduced further to ensure complete responses
+  temperature: 0.6, // Lower temperature for more consistent, correct code
+  top_p: 0.85,
+  max_tokens: 12288, // Increased to allow complete, runnable code generation
   stream: false,
 };
 

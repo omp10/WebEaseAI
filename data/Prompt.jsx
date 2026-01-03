@@ -96,7 +96,20 @@ Return ONLY valid JSON in this exact schema (NO TEXT BEFORE OR AFTER):
 
 ⚠️ DO NOT write "I've taken", "Here's", or any other text. Start directly with { and return ONLY the JSON object.
 
-⚠️ CRITICAL - CODE VALIDATION REQUIREMENTS:
+⚠️ CRITICAL - SANDPACK COMPATIBILITY & CODE VALIDATION REQUIREMENTS:
+🎯 SANDPACK EXECUTION (HIGHEST PRIORITY):
+- Generate code that MUST run successfully in Sandpack React environment
+- Code will be executed immediately - it MUST work on first run with ZERO errors
+- All code must be syntactically correct, complete, and immediately executable
+- NO syntax errors, NO runtime errors, NO missing dependencies
+- Test every line of code mentally - ensure it will execute without issues
+- The code will be transpiled by Babel - ensure it's valid JavaScript/JSX
+- All JSX must be properly formatted and closed
+- All hooks must follow React rules (no conditional hooks, proper dependencies)
+- All event handlers must be properly defined functions
+- All state updates must be valid (no direct mutations)
+
+🔧 CODE COMPLETENESS REQUIREMENTS:
 - Generate COMPLETE, WORKING code - no placeholders, TODOs, or undefined variables
 - ALL variables MUST be defined before use - check every variable reference
 - ALL functions MUST be defined before calling them
@@ -104,16 +117,25 @@ Return ONLY valid JSON in this exact schema (NO TEXT BEFORE OR AFTER):
 - ALL state variables MUST be initialized properly with useState
 - ALL props MUST be destructured or accessed correctly
 - NO undefined references - every variable, function, and component must exist
-- Test your code logic mentally before outputting - ensure all references are valid
+- NO missing return statements in functions
+- NO unclosed brackets, braces, or parentheses
+- NO missing semicolons where required
+- NO invalid JSX syntax (all tags properly closed)
+- All array/object methods must be called on defined variables
+- All conditional rendering must use valid expressions
+
+💻 TECHNICAL CORRECTNESS:
 - Make designs BEAUTIFUL and MODERN - not basic or cookie-cutter
 - Use Tailwind CSS classes extensively for professional styling
 - Create production-worthy applications with excellent UX
-- All code must be syntactically correct and runnable without errors
 - Include proper imports and exports
 - Use functional components with hooks
 - Focus on creating visually stunning, modern interfaces that users will love
+- Ensure all event handlers are properly bound or use arrow functions
+- Ensure all async operations are properly handled
+- Ensure all useEffect dependencies are correct
 
-🔍 CODE VALIDATION CHECKLIST (VERIFY BEFORE OUTPUTTING):
+🔍 SANDPACK VALIDATION CHECKLIST (VERIFY BEFORE OUTPUTTING - CODE MUST RUN):
 - [ ] All variables are defined before use
 - [ ] All functions are defined before calling
 - [ ] All imports are from allowed dependencies
@@ -123,6 +145,17 @@ Return ONLY valid JSON in this exact schema (NO TEXT BEFORE OR AFTER):
 - [ ] All JSX elements are properly closed
 - [ ] All event handlers reference existing functions
 - [ ] All array/object methods are called on defined variables
+- [ ] All brackets, braces, and parentheses are properly closed
+- [ ] All return statements are present where needed
+- [ ] All React hooks follow rules (no conditional hooks)
+- [ ] All useEffect dependencies are correct
+- [ ] Code will execute in Sandpack without syntax errors
+- [ ] Code will execute in Sandpack without runtime errors
+- [ ] All components export correctly
+- [ ] App.js has a default export that renders the main component
+- [ ] All imports resolve to valid modules
+- [ ] No circular dependencies
+- [ ] All async/await operations are properly handled
 `,
 
 }
